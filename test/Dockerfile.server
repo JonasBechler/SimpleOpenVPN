@@ -1,0 +1,16 @@
+# Debian 12 with systemd, standing in for a fresh VPS.
+FROM debian:12
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      systemd systemd-sysv dbus iproute2 procps ca-certificates curl \
+      openssh-server sudo kmod \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && systemctl mask systemd-logind getty.target getty@tty1.service \
+       systemd-udevd.service systemd-udevd-kernel.socket systemd-udevd-control.socket \
+       systemd-modules-load.service sys-kernel-config.mount sys-kernel-debug.mount \
+       systemd-remount-fs.service systemd-resolved.service \
+    && mkdir -p /root/.ssh && chmod 700 /root/.ssh \
+    && echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA test-only-key" > /root/.ssh/authorized_keys \
+    && chmod 600 /root/.ssh/authorized_keys
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

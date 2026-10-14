@@ -1,0 +1,85 @@
+# Test harness: a systemd "VPS" running the installer, two VPN clients, and a
+# fake "internet" host that only the server can reach directly.
+#
+#   public   192.0.2.0/24  clients <-> server (the VPN's public side)
+#   internet 198.51.100.0/24  server <-> whoami  (what the full tunnel NATs to)
+#
+# Run ./run.sh from this directory; do not `docker compose up` by hand.
+name: openvpn-test
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    hostname: vpnserver
+    privileged: true
+    cgroup: host
+    tmpfs: [/run, /run/lock, /tmp]
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - ..:/opt/OpenVPN:ro
+      - clients:/home/admin/vpn-clients
+    devices: ["/dev/net/tun"]
+    sysctls: { net.ipv6.conf.all.disable_ipv6: 0 }
+    networks:
+      public:   { ipv4_address: 192.0.2.10 }
+      internet: { ipv4_address: 198.51.100.10 }
+
+  whoami:
+    image: traefik/whoami
+    networks:
+      internet: { ipv4_address: 198.51.100.20 }
+
+  laptop:   # split tunnel over UDP
+    build: { context: ., dockerfile: Dockerfile.client }
+    environment: { PROFILE: laptop/laptop-split-udp.ovpn }
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls: { net.ipv6.conf.all.disable_ipv6: 0 }
+    volumes: [ "clients:/configs:ro" ]
+    networks:
+      public: { ipv4_address: 192.0.2.21 }
+    profiles: [clients]
+
+  phone:    # full tunnel over TCP 443
+    build: { context: ., dockerfile: Dockerfile.client }
+    environment: { PROFILE: phone/phone-full-tcp443.ovpn }
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls: { net.ipv6.conf.all.disable_ipv6: 0 }
+    volumes: [ "clients:/configs:ro" ]
+    networks:
+      public: { ipv4_address: 192.0.2.22 }
+    profiles: [clients]
+
+  phone-split:   # the same phone certificate, split profile (used in the switch test)
+    build: { context: ., dockerfile: Dockerfile.client }
+    environment: { PROFILE: phone/phone-split-udp.ovpn }
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls: { net.ipv6.conf.all.disable_ipv6: 0 }
+    volumes: [ "clients:/configs:ro" ]
+    networks:
+      public: { ipv4_address: 192.0.2.23 }
+    profiles: [switch]
+
+  phone-revoked:   # a saved copy of phone's profile, used after revocation
+    build: { context: ., dockerfile: Dockerfile.client }
+    environment: { PROFILE: phone-revoked/phone-full-tcp443.ovpn }
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls: { net.ipv6.conf.all.disable_ipv6: 0 }
+    volumes: [ "clients:/configs:ro" ]
+    networks:
+      public: { ipv4_address: 192.0.2.24 }
+    profiles: [revoked]
+
+volumes:
+  clients:
+
+networks:
+  public:
+    ipam: { config: [ { subnet: 192.0.2.0/24 } ] }
+  internet:
+    ipam: { config: [ { subnet: 198.51.100.0/24 } ] }

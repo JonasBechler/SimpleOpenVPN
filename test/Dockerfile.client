@@ -1,0 +1,9 @@
+# Minimal OpenVPN client with test tools.
+FROM debian:12
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openvpn iproute2 iputils-ping curl bind9-dnsutils procps ca-certificates \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY client-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

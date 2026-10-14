@@ -1,0 +1,10 @@
+# test output and local artifacts
+*.log
+test/out/
+# never commit generated secrets or backups
+*.ovpn
+*.tar.age
+*.key
+*.tc2
+*.deb
+.DS_Store
